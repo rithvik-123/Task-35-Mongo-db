@@ -3,7 +3,7 @@ import axios from 'axios';
 import './App.css';
 
 // Point this to your backend server URL
-const API_URL = 'https://task-35-mongo-db.onrender.com';
+const API_URL = 'https://task-35-mongo-db.onrender.com/api/tasks';
 
 function App() {
   const [tasks, setTasks] = useState([]);

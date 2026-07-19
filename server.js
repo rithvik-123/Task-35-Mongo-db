@@ -5,24 +5,20 @@ const mongoose = require('mongoose');
 const taskRoutes = require('./routes/taskRoutes');
 
 const app = express();
+const PORT = process.env.PORT || 5000;
 
-// Middleware setup
 app.use(cors());
 app.use(express.json());
 
-// Hook up the API routes
 app.use('/api/tasks', taskRoutes);
 
-const PORT = process.env.PORT || 5000;
-
-// Connect to MongoDB Atlas
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
-    console.log('Database connected successfully!');
+    console.log('DB connected');
     app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
+      console.log(`Server running on ${PORT}`);
     });
   })
-  .catch((error) => {
-    console.error('Failed to connect to database:', error);
+  .catch((err) => {
+    console.log(err);
   });

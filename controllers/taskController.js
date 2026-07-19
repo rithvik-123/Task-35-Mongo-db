@@ -1,54 +1,67 @@
-const taskService = require('../services/taskService');
+const Task = require('../models/Task');
 
-const getTasks = async (req, res) => {
+const getAllMyTasks = async (req, res) => {
     try {
-        // Extract search and status from the URL query
         const { search, status } = req.query;
-        const tasks = await taskService.fetchAllTasks(search, status);
-        res.status(200).json(tasks);
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to load tasks from database' });
+        let queryObj = {};
+
+        if (search) {
+            queryObj.title = { $regex: search, $options: 'i' };
+        }
+
+        if (status === 'completed') queryObj.isCompleted = true;
+        if (status === 'pending') queryObj.isCompleted = false;
+
+        const myTasks = await Task.find(queryObj).sort({ createdAt: -1 });
+        res.status(200).json(myTasks);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
     }
 };
 
-const addTask = async (req, res) => {
+const addNewTask = async (req, res) => {
     try {
-        const savedTask = await taskService.createNewTask(req.body);
-        res.status(201).json(savedTask);
-    } catch (error) {
-        // Check if the error is from our Mongoose validation rules
-        if (error.name === 'ValidationError') {
-            return res.status(400).json({ error: error.message });
+        const incomingTask = new Task(req.body);
+        const savedItem = await incomingTask.save();
+        res.status(201).json(savedItem);
+    } catch (err) {
+        if (err.name === 'ValidationError') {
+            return res.status(400).json({ error: err.message });
         }
-        res.status(500).json({ error: 'Failed to create task' });
+        res.status(500).json({ error: 'Could not save' });
     }
 };
 
-const editTask = async (req, res) => {
+const updateMyTask = async (req, res) => {
     try {
-        const updatedTask = await taskService.updateExistingTask(req.params.id, req.body);
-        if (!updatedTask) {
-            return res.status(404).json({ error: 'Task not found' });
+        const modifiedTask = await Task.findByIdAndUpdate(
+            req.params.id, 
+            req.body, 
+            { new: true, runValidators: true }
+        );
+        
+        if (!modifiedTask) {
+            return res.status(404).json({ error: 'Not found' });
         }
-        res.status(200).json(updatedTask);
-    } catch (error) {
-        if (error.name === 'ValidationError') {
-            return res.status(400).json({ error: error.message });
+        res.status(200).json(modifiedTask);
+    } catch (err) {
+        if (err.name === 'ValidationError') {
+            return res.status(400).json({ error: err.message });
         }
-        res.status(500).json({ error: 'Failed to update task' });
+        res.status(500).json({ error: 'Could not update' });
     }
 };
 
-const deleteTask = async (req, res) => {
+const removeMyTask = async (req, res) => {
     try {
-        const deletedTask = await taskService.removeTask(req.params.id);
-        if (!deletedTask) {
-            return res.status(404).json({ error: 'Task not found' });
+        const itemToRemove = await Task.findByIdAndDelete(req.params.id);
+        if (!itemToRemove) {
+            return res.status(404).json({ error: 'Not found' });
         }
-        res.status(200).json({ message: 'Task deleted successfully' });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to delete task' });
+        res.status(200).json({ message: 'Deleted' });
+    } catch (err) {
+        res.status(500).json({ error: 'Could not delete' });
     }
 };
 
-module.exports = { getTasks, addTask, editTask, deleteTask };
+module.exports = { getAllMyTasks, addNewTask, updateMyTask, removeMyTask };

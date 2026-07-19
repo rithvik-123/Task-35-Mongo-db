@@ -1,53 +1,54 @@
 const taskService = require('../services/taskService');
 
-async function getTasks(req, res) {
+const getTasks = async (req, res) => {
     try {
-        const tasks = await taskService.getAllTasks();
+        // Extract search and status from the URL query
+        const { search, status } = req.query;
+        const tasks = await taskService.fetchAllTasks(search, status);
         res.status(200).json(tasks);
     } catch (error) {
-        res.status(500).json({ message: "Server error while fetching tasks" });
+        res.status(500).json({ error: 'Failed to load tasks from database' });
     }
-}
+};
 
-async function addTask(req, res) {
+const addTask = async (req, res) => {
     try {
-        if (!req.body.title) {
-            return res.status(400).json({ message: "Task title is required" });
-        }
-        const newTask = await taskService.createTask(req.body);
-        res.status(201).json(newTask);
+        const savedTask = await taskService.createNewTask(req.body);
+        res.status(201).json(savedTask);
     } catch (error) {
-        res.status(500).json({ message: "Server error while creating task" });
+        // Check if the error is from our Mongoose validation rules
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({ error: error.message });
+        }
+        res.status(500).json({ error: 'Failed to create task' });
     }
-}
+};
 
-async function editTask(req, res) {
+const editTask = async (req, res) => {
     try {
-        const updatedTask = await taskService.updateTask(req.params.id, req.body);
+        const updatedTask = await taskService.updateExistingTask(req.params.id, req.body);
         if (!updatedTask) {
-            return res.status(404).json({ message: "Task not found" });
+            return res.status(404).json({ error: 'Task not found' });
         }
         res.status(200).json(updatedTask);
     } catch (error) {
-        res.status(500).json({ message: "Server error while updating task" });
-    }
-}
-
-async function removeTask(req, res) {
-    try {
-        const deletedTask = await taskService.deleteTask(req.params.id);
-        if (!deletedTask) {
-            return res.status(404).json({ message: "Task not found" });
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({ error: error.message });
         }
-        res.status(200).json({ message: "Task deleted successfully" });
-    } catch (error) {
-        res.status(500).json({ message: "Server error while deleting task" });
+        res.status(500).json({ error: 'Failed to update task' });
     }
-}
-
-module.exports = {
-    getTasks,
-    addTask,
-    editTask,
-    removeTask
 };
+
+const deleteTask = async (req, res) => {
+    try {
+        const deletedTask = await taskService.removeTask(req.params.id);
+        if (!deletedTask) {
+            return res.status(404).json({ error: 'Task not found' });
+        }
+        res.status(200).json({ message: 'Task deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete task' });
+    }
+};
+
+module.exports = { getTasks, addTask, editTask, deleteTask };

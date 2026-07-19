@@ -2,123 +2,148 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './App.css';
 
-// Point this to your backend server URL
-const API_URL = 'https://task-35-mongo-db.onrender.com/api/tasks';
+// Make sure to change this back to your Render URL when deploying!
+const API_URL = 'http://localhost:5000/api/tasks'; 
 
 function App() {
   const [tasks, setTasks] = useState([]);
   const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  
+  // States for Search and Filter requirements
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
 
-  // Fetch tasks when the component loads
+  // States for Updating Task Title requirement
+  const [editingTaskId, setEditingTaskId] = useState(null);
+  const [editTitleText, setEditTitleText] = useState('');
+
+  // Re-fetch tasks whenever the search or filter changes
   useEffect(() => {
     fetchTasks();
-  }, []);
+  }, [searchQuery, statusFilter]);
 
-  async function fetchTasks() {
-    setIsLoading(true);
-    setErrorMessage('');
+  const fetchTasks = async () => {
     try {
-      const response = await axios.get(API_URL);
+      const response = await axios.get(`${API_URL}?search=${searchQuery}&status=${statusFilter}`);
       setTasks(response.data);
     } catch (error) {
-      setErrorMessage('Failed to load tasks. Is the backend running?');
-    } finally {
-      setIsLoading(false);
+      console.error("Could not fetch tasks");
     }
-  }
+  };
 
-  async function handleAddTask(event) {
-    event.preventDefault();
-    if (newTaskTitle.trim() === '') return;
-
+  const handleAddTask = async (e) => {
+    e.preventDefault();
     try {
-      const response = await axios.post(API_URL, {
-        title: newTaskTitle,
-        isCompleted: false
-      });
-      // Add the newly created task from the database to our local state
-      setTasks([...tasks, response.data]);
-      setNewTaskTitle(''); 
+      await axios.post(API_URL, { title: newTaskTitle });
+      setNewTaskTitle('');
+      fetchTasks();
     } catch (error) {
-      setErrorMessage('Failed to add a new task.');
+      alert(error.response?.data?.error || "Error adding task");
     }
-  }
+  };
 
-  async function handleToggleComplete(task) {
+  const toggleCompletionStatus = async (task) => {
     try {
-      const response = await axios.put(`${API_URL}/${task._id}`, {
-        isCompleted: !task.isCompleted
-      });
-      
-      // Update the UI by mapping through tasks and replacing the updated one
-      const updatedTasks = tasks.map(function(t) {
-        if (t._id === task._id) {
-            return response.data;
-        }
-        return t;
-      });
-      setTasks(updatedTasks);
+      await axios.put(`${API_URL}/${task._id}`, { isCompleted: !task.isCompleted });
+      fetchTasks();
     } catch (error) {
-      setErrorMessage('Failed to update the task status.');
+      console.error("Error updating status");
     }
-  }
+  };
 
-  async function handleDeleteTask(taskId) {
+  const startEditing = (task) => {
+    setEditingTaskId(task._id);
+    setEditTitleText(task.title);
+  };
+
+  const saveEditedTitle = async (id) => {
     try {
-      await axios.delete(`${API_URL}/${taskId}`);
-      
-      // Remove the deleted task from our local state array
-      const remainingTasks = tasks.filter(function(task) {
-        return task._id !== taskId;
-      });
-      setTasks(remainingTasks);
+      await axios.put(`${API_URL}/${id}`, { title: editTitleText });
+      setEditingTaskId(null);
+      fetchTasks();
     } catch (error) {
-      setErrorMessage('Failed to delete the task.');
+       alert(error.response?.data?.error || "Error updating title (Must be 3-100 characters)");
     }
-  }
+  };
+
+  const handleDeleteTask = async (id) => {
+    try {
+      await axios.delete(`${API_URL}/${id}`);
+      fetchTasks();
+    } catch (error) {
+      console.error("Error deleting task");
+    }
+  };
 
   return (
     <div className="app-container">
       <h1>My Full-Stack To-Do List</h1>
       
-      {errorMessage && <div className="error-box">{errorMessage}</div>}
-      
-      <form onSubmit={handleAddTask} className="add-task-form">
+      {/* Search and Filter Section */}
+      <div className="controls-section" style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+        <input 
+          type="text" 
+          placeholder="Search tasks..." 
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{ flex: 1, padding: '8px' }}
+        />
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ padding: '8px' }}>
+          <option value="all">All Tasks</option>
+          <option value="pending">Pending</option>
+          <option value="completed">Completed</option>
+        </select>
+      </div>
+
+      <form className="add-task-form" onSubmit={handleAddTask}>
         <input 
           type="text" 
           placeholder="What needs to be done?" 
-          value={newTaskTitle}
-          onChange={function(e) { setNewTaskTitle(e.target.value) }}
+          value={newTaskTitle} 
+          onChange={(e) => setNewTaskTitle(e.target.value)} 
+          required
         />
         <button type="submit">Add Task</button>
       </form>
 
-      {isLoading ? (
-        <p>Loading tasks from database...</p>
-      ) : (
-        <ul className="task-list">
-          {tasks.map(function(task) {
-            return (
-              <li key={task._id} className={task.isCompleted ? 'completed' : ''}>
-                <span 
-                  className="task-title" 
-                  onClick={function() { handleToggleComplete(task) }}
-                >
-                  {task.title}
-                </span>
-                <button 
-                  className="delete-btn" 
-                  onClick={function() { handleDeleteTask(task._id) }}
-                >
-                  Delete
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <ul className="task-list">
+        {tasks.map(task => (
+          <li key={task._id} className={task.isCompleted ? 'completed' : ''} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            
+            <input 
+              type="checkbox" 
+              checked={task.isCompleted} 
+              onChange={() => toggleCompletionStatus(task)} 
+            />
+            
+            {/* Conditional Rendering for Edit Mode */}
+            {editingTaskId === task._id ? (
+              <div style={{ flex: 1, display: 'flex', gap: '5px' }}>
+                <input 
+                  type="text" 
+                  value={editTitleText} 
+                  onChange={(e) => setEditTitleText(e.target.value)} 
+                  style={{ flex: 1 }}
+                />
+                <button onClick={() => saveEditedTitle(task._id)}>Save</button>
+                <button onClick={() => setEditingTaskId(null)}>Cancel</button>
+              </div>
+            ) : (
+              <span className="task-title" style={{ flex: 1, textDecoration: task.isCompleted ? 'line-through' : 'none' }}>
+                {task.title}
+              </span>
+            )}
+
+            {/* Only show Edit/Delete buttons if we are NOT currently editing this specific task */}
+            {editingTaskId !== task._id && (
+               <div className="actions">
+                 <button onClick={() => startEditing(task)} style={{ marginRight: '5px' }}>Edit</button>
+                 <button className="delete-btn" onClick={() => handleDeleteTask(task._id)}>Delete</button>
+               </div>
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
